@@ -31,14 +31,21 @@ async function generarInventario() {
 
     const regionDeseada = "us-east-1";
 
+    console.log(Buckets)
+
 
     const bucketsEnRegion = [];
 
     for (const bucket of Buckets || []) {
-        const location = await s3.send(new GetBucketLocationCommand({ Bucket: bucket.Name! }));
-        const bucketRegion = location.LocationConstraint || "us-east-1"; 
-        if (bucketRegion === regionDeseada) {
-            bucketsEnRegion.push(bucket);
+        console.log(bucket.Name)
+        if (bucket.Name !== "cr-recepcion-xml") {
+
+            const location = await s3.send(new GetBucketLocationCommand({ Bucket: bucket.Name! }));
+            const bucketRegion = location.LocationConstraint || "us-east-1";
+
+            if (bucketRegion === regionDeseada) {
+                bucketsEnRegion.push(bucket);
+            }
         }
     }
 
@@ -61,10 +68,12 @@ async function generarInventario() {
             const policy = await s3.send(new GetBucketPolicyStatusCommand({ Bucket: name }))
                 .catch((err: any) => {
                     if (err.Code === "NoSuchBucketPolicy") {
-                        return { PolicyStatus: { IsPublic: false } };
+                        return { PolicyStatus: { IsPublic: true } };
                     }
                     throw err;
                 });
+                console.log(bucket.Name);
+                console.log(policy);
 
             const tamano = await obtenerMetricas(name, "BucketSizeBytes", "StandardStorage");
             const numeroObjetos = await obtenerMetricas(name, "NumberOfObjects", "AllStorageTypes");
@@ -75,8 +84,8 @@ async function generarInventario() {
                 tamano: tamano?.value,
                 numeroObjetos: numeroObjetos?.value,
                 accesoPublico: accessPublic(access?.PublicAccessBlockConfiguration),
-                bucketPolicy: policy?.PolicyStatus?.IsPublic,
-                deleteFlag: evaluarBucket(tamano?.value, numeroObjetos?.value, policy?.PolicyStatus?.IsPublic || false)
+                bucketPolicy: !policy?.PolicyStatus?.IsPublic,
+                deleteFlag: evaluarBucket(tamano?.value, numeroObjetos?.value, !policy?.PolicyStatus?.IsPublic || false)
 
             });
             console.log(" Inventario generado: inventario-s3.json");
@@ -111,8 +120,8 @@ export async function exportToExcel(dataBucket: BucketInfo[]) {
     await workbook.xlsx.readFile(filePath);
     const sheet = workbook.worksheets[0];
 
-    let startRow = 4; 
-    const startCol = 4; 
+    let startRow = 4;
+    const startCol = 4;
 
     for (const obj of dataBucket) {
         let col = startCol;
@@ -134,7 +143,7 @@ export async function exportToExcel(dataBucket: BucketInfo[]) {
             col++;
         }
 
-        startRow++; 
+        startRow++;
     }
 
     await workbook.xlsx.writeFile(filePath);
